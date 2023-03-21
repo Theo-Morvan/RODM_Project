@@ -1,4 +1,5 @@
 include("struct/distance.jl")
+include("new_functions.jl")
 
 """
 Essaie de regrouper des données en commençant par celles qui sont les plus proches.
@@ -281,3 +282,117 @@ function NoClassMerge(x::Matrix{Float64},y::Vector{Int}, n_clusters::Int=4)
     # Retourner tous les clusters non vides
     return filter(x -> length(x.dataIds) > 0, clusters)
 end
+
+function ConvexHullMerge(
+    x::Matrix{float64}, 
+    y::Vector{Int}, 
+    max_elements_small_classes::Int64,
+    num_clusters::Int64,
+)
+    n = length(y)
+    m = length(x[1,:])
+    clusters = Vector{Cluster}([])
+    for dataId in 1:size(x,1)
+        push!(clusters, Cluster(dataId, x,y))
+    end
+    clusterId = collect(1:n) #On obtient un vecteur 1,2..., qui correspond pour chaque cluster à son clusterId
+    distances = Vector{Distance}([])
+    for id1 in 1:n-1
+        for id2 in id1+1:n
+            push!(distances, Distance(id1, id2, x))
+        end
+    end
+    sort!(distances, by = v ->v.distance)
+    remainingClusters=n
+    distanceId = 1
+    n_epochs = 1
+    c1_bis = Nothing
+    c2_bis = Nothing
+    i = 1
+    a=i
+    
+
+    while remainingClusters>= num_clusters
+        distance = distances[distanceId]
+        cId1 =clusterId[distance.ids[1]]
+        cId2 = clusterId[distance.ids[2]]
+        if cId1 != cId2
+            c1 = clusters[cId1]
+            c2 = clusters[cId2]
+            count_classes_in_clusters = StatsBase.countmap([y[c2.dataIds]; y[c1.dataIds]])
+            df = DataFrame()
+            df."classes" = collect(keys(count_classes_in_clusters))
+            df."count_classes" = collect(values(count_classes_in_clusters))
+            df = sort(df, [:count_classes], rev=true)
+            # if sum(df[df."count_classes".!=maximum(df."count_classes"),:]."count_classes") <= max_elements_small_classes
+            if sum(df[df."classes".!=df[1,1],"count_classes"])<= max_elements_small_classes
+                remainingClusters -=1
+                if remainingClusters < num_clusters
+                    break
+                end
+                merge!(c1, c2) #On merge les 2 clusters
+                for id in c2.dataIds 
+                    clusterId[id]= cId1 #On modifie le clusterId dans la serie pour le cluster_2, on lui affecte le cluster_1
+                end
+                # Vider le second cluster
+                empty!(clusters[cId2].dataIds)
+            end
+
+        end
+        distanceId += 1
+    end
+    df_clusters = DataFrame()
+    df_clusters."cluster_id" = collect(keys(StatsBase.countmap(clusterId)))
+    df_clusters."number_elements" = collect(values(StatsBase.countmap(clusterId)))
+    higher_than_threshold(value::Int64) = value >= 1
+    clusters_to_treat = filter(:"number_elements"=> higher_than_threshold, df_clusters)."cluster_id"
+    for cluster_interest in clusters_to_treat
+        clusters = update_clusters(
+            clusters,
+            cluster_interest,
+            clusterId,
+            y
+        )   
+    end
+    return filter(x -> length(x.dataIds) > 0, clusters)
+end 
+
+function PercentageMerge(x::Matrix{Float64},y::Vector{Int}, n_clusters::Int=4)
+    n = length(y)
+    m = length(x[1,:])
+    clusters = Vector{Cluster}([])
+    for dataId in 1:size(x,1)
+        push!(clusters, Cluster(dataId, x,y))
+    end
+    clusterId = collect(1:n)
+    distances = Vector{Distance}([])
+    for id1 in 1:n-1
+        for id2 in id1+1:n
+            push!(distances, Distance(id1, id2, x))
+        end
+    end
+    sort!(distances, by = v ->v.distance)
+    remainingClusters=n
+    distanceId = 1
+    while distanceId <= length(distances) &&remainingClusters>n_clusters
+        distance = distances[distanceId]
+        cId1 =clusterId[distance.ids[1]]
+        cId2 = clusterId[distance.ids[2]]
+        if cId1 != cId2
+            remainingClusters -=1
+            c1 = clusters[cId1]
+            c2 = clusters[cId2]
+            merge!(c1, c2)
+            for id in c2.dataIds
+                clusterId[id]= cId1
+            end
+
+        # Vider le second cluster
+            empty!(clusters[cId2].dataIds)
+        end
+        distanceId += 1
+    end
+    # Retourner tous les clusters non vides
+    return filter(x -> length(x.dataIds) > 0, clusters)
+end
+
