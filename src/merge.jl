@@ -1,5 +1,15 @@
 include("struct/distance.jl")
+include("utilities.jl")
 include("new_functions.jl")
+using DataFrames, Random
+using DataStructures
+using StatsBase
+using Statistics
+using LinearAlgebra
+using LazySets
+using Polyhedra
+using Clustering
+using Debugger
 
 """
 Essaie de regrouper des données en commençant par celles qui sont les plus proches.
@@ -283,8 +293,94 @@ function NoClassMerge(x::Matrix{Float64},y::Vector{Int}, n_clusters::Int=4)
     return filter(x -> length(x.dataIds) > 0, clusters)
 end
 
+function compute_dataframe_classes(
+    cluster_interest::Int64,
+    clusterId::Vector{Int64},
+    y::Vector{Int64}
+)
+    count_classes_in_clusters = StatsBase.countmap(y[findall(x->x==cluster_interest, clusterId)])
+    y_cluster = y[findall(x->x==cluster_interest, clusterId)]
+    df = DataFrame()
+    df."classes" = collect(keys(count_classes_in_clusters))
+    df."count_classes" = collect(values(count_classes_in_clusters))
+    df = sort(df, [:count_classes], rev=true)
+    return (df, y_cluster)
+end
+
+function detect_points_small_classes(
+    cluster_interest::Int64,
+    clusterId::Vector{Int64},
+    y::Vector{Int64},
+    main_class::Int64,
+)
+    points_in_cluster = findall(x->x==cluster_interest, clusterId)
+    points_reckon_with = Vector{Int64}([])
+    points_sideline = Vector{Int64}([])
+    for (i, point) in enumerate(points_in_cluster)
+        if y[point] != main_class
+            push!(points_sideline,i )
+        else
+            push!(points_reckon_with, i)
+        end
+    end
+    return (points_reckon_with, points_sideline)
+end
+
+function trimming_cluster(
+    clusters::Vector{Cluster},
+    cluster_interest::Int64,
+    points_reckon_with::Vector{Int64},
+    points_sideline::Vector{Int64},
+    y_cluster::Vector{Int64},
+)
+    matrix_interest = clusters[cluster_interest].x
+    size(matrix_interest, 1)
+    vectors_cluster = [matrix_interest[i,:] for i in 1:size(matrix_interest,1)]
+    vectors_cluster[points_reckon_with]
+    hull = LazySets.convex_hull(vectors_cluster[points_reckon_with])
+    for i in 1:length(points_sideline)
+        # println(i, " ",element(Singleton(vectors_cluster[points_sideline[i]])) ∈ VPolytope(hull))
+        if element(Singleton(vectors_cluster[points_sideline[i]])) ∈ VPolytope(hull)
+            push!(points_reckon_with,  points_sideline[i])
+        end
+    end
+    sort!(points_reckon_with)
+    points_to_be_taken_out_cluster = points_sideline[points_sideline .∉ Ref(points_reckon_with)]
+    new_clusters = Vector{Cluster}([])
+    point_cluster  = points_reckon_with[1]
+    trimmed_cluster = Cluster(point_cluster, matrix_interest, y_cluster)
+    for point_cluster in points_reckon_with[2:end]
+        new_cluster = Cluster(point_cluster, matrix_interest, y_cluster)
+        merge!(trimmed_cluster, new_cluster)
+    end
+
+    for point_cluster in points_to_be_taken_out_cluster
+        new_cluster = Cluster(point_cluster, matrix_interest, y_cluster)
+        push!(clusters, new_cluster)
+    end
+    clusters[cluster_interest] = trimmed_cluster
+    return clusters
+end
+
+function update_clusters(
+    clusters::Vector{Cluster},
+    cluster_interest::Int64,
+    clusterId::Vector{Int64},
+    y::Vector{Int64},
+)
+    df, y_cluster = compute_dataframe_classes(cluster_interest, clusterId, y)
+    if size(df)[1]>1
+        main_class = df[1,1]
+        points_reckon_with, points_sideline =detect_points_small_classes(cluster_interest, clusterId, y,main_class)
+        clusters = trimming_cluster(clusters, cluster_interest,points_reckon_with, points_sideline, y_cluster)
+        return clusters
+    else
+        return clusters
+    end
+end
+
 function ConvexHullMerge(
-    x::Matrix{float64}, 
+    x::Matrix{Float64}, 
     y::Vector{Int}, 
     max_elements_small_classes::Int64,
     num_clusters::Int64,
@@ -336,11 +432,14 @@ function ConvexHullMerge(
                 end
                 # Vider le second cluster
                 empty!(clusters[cId2].dataIds)
-            end
-
+            end 
         end
         distanceId += 1
+        if distanceId>=length(distances)
+            break
+        end
     end
+    print("we're moving forward in algorithm")
     df_clusters = DataFrame()
     df_clusters."cluster_id" = collect(keys(StatsBase.countmap(clusterId)))
     df_clusters."number_elements" = collect(values(StatsBase.countmap(clusterId)))
@@ -356,6 +455,48 @@ function ConvexHullMerge(
     end
     return filter(x -> length(x.dataIds) > 0, clusters)
 end 
+
+
+function Kmeans_Based_Merge(x::Matrix{Float64},y::Vector{Int}, number_clusters::Int=4)
+    result_kmeans = Clustering.kmeans(transpose(x), number_clusters)
+    a = assignments(result_kmeans)
+    centers = result_kmeans.centers
+    clusters = Vector{Cluster}([])
+    for cluster_interest in 1:number_clusters
+        count_classes_in_clusters = StatsBase.countmap(y[findall(x->x==cluster_interest, a)])
+        y_cluster = y[findall(x->x==2, a)]
+        df = DataFrame()
+        df."classes" = collect(keys(count_classes_in_clusters))
+        df."count_classes" = collect(values(count_classes_in_clusters))
+        df = sort(df, [:count_classes], rev=true)
+        number_classes = size(df, 1)
+        if number_classes > 1
+            println(cluster_interest)
+        end
+        points_cluster = findall(x->x==cluster_interest, a)
+        cluster_group = Cluster(points_cluster[1], x, y)
+        for point_cluster in points_cluster[2:end]
+            new_cluster = Cluster(point_cluster, x, y)
+            merge!(cluster_group, new_cluster)
+        end
+        push!(clusters, cluster_group)
+    end
+    clusterId = a
+    df_clusters = DataFrame()
+    df_clusters."cluster_id" = collect(keys(StatsBase.countmap(clusterId)))
+    df_clusters."number_elements" = collect(values(StatsBase.countmap(clusterId)))
+    higher_than_threshold(value::Int64) = value >= 1
+    clusters_to_treat = filter(:"number_elements"=> higher_than_threshold, df_clusters)."cluster_id"
+    for cluster_interest in clusters_to_treat
+        clusters = update_clusters(
+            clusters,
+            cluster_interest,
+            clusterId,
+            y
+        )   
+    end
+    return filter(x -> length(x.dataIds) > 0, clusters)
+end
 
 function PercentageMerge(x::Matrix{Float64},y::Vector{Int}, n_clusters::Int=4)
     n = length(y)
