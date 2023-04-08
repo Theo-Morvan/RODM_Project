@@ -71,7 +71,7 @@ function main_merge()
     return (final_dataframe_univariate, final_dataframe_multivariate)
 end 
 
-using Debugger
+
 function testMerge(dataset_name, X_train, Y_train, X_test, Y_test, 
     D, classes; time_limit::Int=-1, isMultivariate::Bool = false,
 
@@ -90,6 +90,7 @@ function testMerge(dataset_name, X_train, Y_train, X_test, Y_test,
         # n = Int64(gamma*length(Y_train))
         # print("\t\t\t", gamma * 100, "%\t\t")
         clusters = exactMerge(X_train, Y_train)
+        print("\t exactMerge clusters done")
         # clusters_bis = simpleMerge(X_train, Y_train, gamma)
         # clusters_third = NoClassMerge(X_train, Y_train, n)  
         # clusters = ConvexHullMerge(X_train, Y_train, 5,number_cluster)
