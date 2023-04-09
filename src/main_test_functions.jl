@@ -12,12 +12,10 @@ using Debugger
 using CSV
 
 function main_merge()
-    print("we're starting ConvexHullMerge methode")
-    println("\n")
     final_dataframe_univariate = DataFrame(
         dataset_name=Any[],
         D=Int64[], 
-        number_clusters=Int64[],
+        gamma=Float64[],
         Errors_train=Int64[],
         Errors_test=Int64[],
         Resolution_time=Any[],
@@ -25,7 +23,7 @@ function main_merge()
     final_dataframe_multivariate = DataFrame(
         dataset_name=Any[],
         D=Int64[], 
-        number_clusters=Int64[],
+        gamma=Float64[],
         Errors_train=Int64[],
         Errors_test=Int64[],
         Resolution_time=Any[],
@@ -63,11 +61,11 @@ function main_merge()
             final_dataframe_univariate = vcat(final_dataframe_univariate, df_temporary)
             println("\t\tMultivarié")
             df_temporary = testMerge(dataSetName ,X_train, Y_train, X_test, Y_test, D, classes, time_limit = time_limit, isMultivariate = true)
-            final_dataframe_multivariate = vcat(final_dataframe_multivariate)
+            final_dataframe_multivariate = vcat(final_dataframe_multivariate, df_temporary)
         end
     end
-    CSV.write("final_results_univariate_exactmerge.csv", final_dataframe_univariate)
-    CSV.write("final_results_multivariate_exactmerge.csv", final_dataframe_multivariate)
+    CSV.write("final_results_univariate_convexhull.csv", final_dataframe_univariate)
+    CSV.write("final_results_multivariate_convexhull.csv", final_dataframe_multivariate)
     return (final_dataframe_univariate, final_dataframe_multivariate)
 end 
 
@@ -79,22 +77,28 @@ function testMerge(dataset_name, X_train, Y_train, X_test, Y_test,
     df_dataset_D = DataFrame(
         dataset_name=Any[],
         D=Int64[], 
-        number_clusters=Int64[],
+        gamma=Float64[],
         Errors_train=Int64[],
         Errors_test=Int64[],
         Resolution_time=Any[],
     )
     # Pour tout pourcentage de regroupement considéré
     println("\t\t\tGamma\t\t# clusters\tGap")
-    for number_cluster in 5:3:20
+    # for number_cluster in 5:3:20
+    for gamma in 0:0.2:1
         # n = Int64(gamma*length(Y_train))
-        # print("\t\t\t", gamma * 100, "%\t\t")
-        clusters = exactMerge(X_train, Y_train)
-        print("\t exactMerge clusters done")
-        # clusters_bis = simpleMerge(X_train, Y_train, gamma)
+        print("\t\t\t", gamma * 100, "%\t\t")
+        # clusters = exactMerge(X_train, Y_train)
+        # print("\t exactMerge clusters done")
+        
+        number_clusters = trunc(Int, length(Y_train)*gamma)
         # clusters_third = NoClassMerge(X_train, Y_train, n)  
-        # clusters = ConvexHullMerge(X_train, Y_train, 5,number_cluster)
-        # clusters = ConvexHullMerge(X_train, Y_train, 5,number_cluster)
+        if number_clusters ==0
+            number_clusters = 3
+        end
+        # clusters = Kmeans_Based_Merge(X_train, Y_train, number_clusters)
+        clusters = ConvexHullMerge(X_train, Y_train, 5,number_clusters)
+        # clusters = simpleMerge(X_train, Y_train, gamma)
         T, obj, resolution_time, gap = build_tree(clusters, D, classes, multivariate = isMultivariate, time_limit = time_limit)
         
         print(round(gap, digits = 1), "%\t") 
@@ -103,7 +107,7 @@ function testMerge(dataset_name, X_train, Y_train, X_test, Y_test,
         errors_train = prediction_errors(T, X_train, Y_train, classes)
         errors_test = prediction_errors(T, X_test, Y_test, classes)
         println(round(resolution_time, digits=1), "s")
-        output_vector = [dataset_name, D, number_cluster, errors_train, errors_test, round(resolution_time, digits=1)] 
+        output_vector = [dataset_name, D, gamma, errors_train, errors_test, round(resolution_time, digits=1)] 
         push!(df_dataset_D, output_vector)
     end
     println()
