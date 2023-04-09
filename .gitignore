@@ -1,3 +1,4 @@
 *.pdf
 *.png
 data/*.csv
+Exploration_Notebooks/*
