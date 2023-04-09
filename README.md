@@ -12,3 +12,5 @@ Le code permettant de tester les différents algorithmes se trouvent dans le ré
 
 ### Resultats
 Les fichiers csv contenant nos résultats sont trouvables dans le répertoire Results_data/.
+
+Le notebook notebook_exploration_results.ipynb permet de visualiser les résultats.
