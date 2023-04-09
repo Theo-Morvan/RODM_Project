@@ -87,12 +87,8 @@ function testMerge(dataset_name, X_train, Y_train, X_test, Y_test,
     # for number_cluster in 5:3:20
     for gamma in 0:0.2:1
         # n = Int64(gamma*length(Y_train))
-        print("\t\t\t", gamma * 100, "%\t\t")
-        # clusters = exactMerge(X_train, Y_train)
-        # print("\t exactMerge clusters done")
-        
-        number_clusters = trunc(Int, length(Y_train)*gamma)
-        # clusters_third = NoClassMerge(X_train, Y_train, n)  
+        print("\t\t\t", gamma * 100, "%\t\t")        
+        number_clusters = trunc(Int, length(Y_train)*gamma)  
         if number_clusters ==0
             number_clusters = 3
         end

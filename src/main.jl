@@ -1,10 +1,25 @@
 include("building_tree.jl")
 include("utilities.jl")
+using CSV
+using DataFrames
 
 function main()
-
+    df_dataset_univariate = DataFrame(
+        dataset_name=Any[],
+        D=Int64[],
+        Errors_train=Int64[],
+        Errors_test=Int64[],
+        Resolution_time=Any[],
+    )
+    df_dataset_multivariate = DataFrame(
+        dataset_name=Any[],
+        D=Int64[], 
+        Errors_train=Int64[],
+        Errors_test=Int64[],
+        Resolution_time=Any[],
+    )
     # Pour chaque jeu de données
-    for dataSetName in ["iris", "seeds", "wine"]
+    for dataSetName in ["iris", "seeds", "wine", "titanic", "penguins"]
         
         print("=== Dataset ", dataSetName)
 
@@ -48,8 +63,12 @@ function main()
                 print("Erreurs train/test ", prediction_errors(T,X_train,Y_train, classes))
                 print("/", prediction_errors(T,X_test,Y_test, classes), "\t")
             end
+            errors_train = prediction_errors(T,X_train,Y_train, classes)
+            errors_test = prediction_errors(T,X_test,Y_test, classes)
+            output_vector = [dataSetName, D, errors_train, errors_test, round(resolution_time, digits=1)]
+            push!(df_dataset_univariate, output_vector)
             println()
-
+            
             ## 2 - Multivarié
             print("    Multivarié...\t")
             T, obj, resolution_time, gap = build_tree(X_train, Y_train, D, classes, multivariate = true, time_limit = time_limit)
@@ -59,7 +78,14 @@ function main()
                 print("Erreurs train/test ", prediction_errors(T,X_train,Y_train, classes))
                 print("/", prediction_errors(T,X_test,Y_test, classes), "\t")
             end
+            errors_train = prediction_errors(T,X_train,Y_train, classes)
+            errors_test = prediction_errors(T,X_test,Y_test, classes)
+            output_vector = [dataSetName, D, errors_train, errors_test, round(resolution_time, digits=1)]
+            push!(df_dataset_multivariate, output_vector)
             println("\n")
         end
     end 
+    CSV.write("final_results_univariate_no_cluster.csv", df_dataset_univariate)
+    CSV.write("final_results_multivariate_no_cluster.csv", df_dataset_multivariate)
+    return (df_dataset_univariate,  df_dataset_multivariate)
 end
