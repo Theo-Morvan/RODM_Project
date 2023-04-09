@@ -1,7 +1,7 @@
 include("building_tree.jl")
 include("utilities.jl")
 include("merge.jl")
-include("new_functions.jl")
+
 using Debugger
 
 function main_merge()
