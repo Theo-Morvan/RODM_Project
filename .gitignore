@@ -1,4 +1,5 @@
 *.pdf
 *.png
 data/*.csv
-Exploration_Notebooks/*
+Exploration_Notebooks/*.ipynb
+
