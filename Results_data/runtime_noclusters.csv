@@ -1,0 +1,6 @@
+dataset_name,Depth_2,Depth_3,Depth_4
+iris,2.6,25.1,30.2
+penguins,30.1,30.2,30.6
+seeds,30.1,30.1,30.2
+titanic,30.1,30.2,30.4
+wine,26.4,30.1,30.2
